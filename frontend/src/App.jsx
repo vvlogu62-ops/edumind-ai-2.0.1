@@ -25,8 +25,9 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const originalEmail = 'vvlogu62@gmail.com';
   const [isAuthenticated, setIsAuthenticated] = useState(() => sessionStorage.getItem('edumind-authenticated') === 'true');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(originalEmail);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -75,6 +76,10 @@ export default function App() {
     event.preventDefault();
     if (!email.trim() || !password.trim()) {
       setLoginError('Enter your email and password to continue.');
+      return;
+    }
+    if (email.trim().toLowerCase() !== originalEmail) {
+      setLoginError(`Use the original account email: ${originalEmail}`);
       return;
     }
 
@@ -229,7 +234,7 @@ export default function App() {
               >
                 {showForgotPassword ? 'Back to sign in' : 'Forgot password?'}
               </button>
-              {!showForgotPassword && <p className="text-slate-500 text-[11px] mt-3">Use any non-empty email and password for this local demo.</p>}
+              {!showForgotPassword && <p className="text-slate-500 text-[11px] mt-3">Sign in with {originalEmail} and your password.</p>}
             </div>
           </form>
         </div>
