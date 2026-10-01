@@ -50,6 +50,7 @@ export default function App() {
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [language, setLanguage] = useState('en');
   const chatBottomRef = useRef(null);
 
   // Modal State
@@ -128,7 +129,7 @@ export default function App() {
         setStudent(data.student);
         setCurrentRollNo(rollNo);
         setSearchInput(rollNo);
-        fetchRecommendation(data.student.overall_mastery);
+        fetchRecommendation(data.student.overall_mastery, language);
         showNotification(`Loaded profile for ${data.student.name}`, 'success');
       } else {
         showNotification(data.message || `Student ${rollNo} not found`, 'error');
@@ -142,12 +143,12 @@ export default function App() {
   };
 
   // Fetch AI Recommendation
-  const fetchRecommendation = async (mastery) => {
+  const fetchRecommendation = async (mastery, selectedLanguage = language) => {
     try {
       const res = await fetch(`${API}/api/ai/recommend`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mastery: mastery || 0 })
+        body: JSON.stringify({ mastery: mastery || 0, language: selectedLanguage })
       });
       const data = await res.json();
       setRecommendation(data.recommendation || 'Revise key concepts.');
@@ -161,6 +162,10 @@ export default function App() {
     fetchStudents();
     loadStudent(currentRollNo);
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (student) fetchRecommendation(student.overall_mastery, language);
+  }, [language]);
 
   if (!isAuthenticated) {
     return (
@@ -257,7 +262,7 @@ export default function App() {
       const res = await fetch(`${API}/api/ai/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: query })
+        body: JSON.stringify({ question: query, language })
       });
       const data = await res.json();
       setIsTyping(false);
@@ -655,18 +660,34 @@ export default function App() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => setMessages([{
-                        id: Date.now(),
-                        sender: 'bot',
-                        text: `Chat reset! How can I assist you with your studies, ${student.name}?`,
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                      }])}
-                      title="Clear chat"
-                      className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition text-xs"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 bg-slate-950/70 border border-white/10 rounded-lg p-1" aria-label="AI response language">
+                        <button
+                          onClick={() => setLanguage('en')}
+                          className={`px-2 py-1 rounded-md text-[10px] font-semibold transition ${language === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          English
+                        </button>
+                        <button
+                          onClick={() => setLanguage('ta')}
+                          className={`px-2 py-1 rounded-md text-[10px] font-semibold transition ${language === 'ta' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                        >
+                          தமிழ்
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setMessages([{
+                          id: Date.now(),
+                          sender: 'bot',
+                          text: language === 'ta' ? `உங்கள் படிப்பைப் பற்றி நான் எவ்வாறு உதவலாம், ${student.name}?` : `Chat reset! How can I assist you with your studies, ${student.name}?`,
+                          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        }])}
+                        title="Clear chat"
+                        className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition text-xs"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* Suggestion Chips */}

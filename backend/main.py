@@ -1,4 +1,7 @@
 import os
+import json
+from urllib import request as url_request
+from urllib.error import HTTPError, URLError
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -77,6 +80,34 @@ students = {
 }
 
 
+def generate_ai_response(prompt: str):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return None
+
+    payload = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.7, "maxOutputTokens": 700}
+    }).encode("utf-8")
+    endpoint = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.0-flash:generateContent?key={api_key}"
+    )
+    try:
+        http_request = url_request.Request(
+            endpoint,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with url_request.urlopen(http_request, timeout=25) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (HTTPError, URLError, KeyError, IndexError, json.JSONDecodeError) as error:
+        print(f"Gemini request failed: {error}")
+        return None
+
+
 @app.get("/")
 def root():
     return {
@@ -148,13 +179,23 @@ def create_or_update_student(data: dict):
 @app.post("/api/ai/recommend")
 def recommendation(data: dict):
     mastery = data.get("mastery", 0)
+    language = data.get("language", "en")
+    language_name = "Tamil" if language == "ta" else "English"
+
+    ai_message = generate_ai_response(
+        "You are EduMind AI, a supportive academic advisor. "
+        f"Give a concise, practical recommendation in {language_name} for a student with "
+        f"{mastery}% overall mastery. Include one immediate action and one next step."
+    )
+    if ai_message:
+        return {"recommendation": ai_message, "source": "gemini"}
 
     if mastery < 50:
-        message = "Start with basic concepts and practice simple questions."
+        message = "அடிப்படை கருத்துகளில் தொடங்கி எளிய கேள்விகளைப் பயிற்சி செய்யுங்கள்." if language == "ta" else "Start with basic concepts and practice simple questions."
     elif mastery < 75:
-        message = "Revise weak topics and attempt more practice questions."
+        message = "பலவீனமான தலைப்புகளை மீண்டும் படித்து, கூடுதல் பயிற்சி கேள்விகளை முயற்சி செய்யுங்கள்." if language == "ta" else "Revise weak topics and attempt more practice questions."
     else:
-        message = "Your mastery is good. Try advanced-level questions."
+        message = "உங்கள் திறன் நன்றாக உள்ளது. மேம்பட்ட நிலை கேள்விகளை முயற்சி செய்யுங்கள்." if language == "ta" else "Your mastery is good. Try advanced-level questions."
 
     return {
         "recommendation": message
@@ -163,34 +204,57 @@ def recommendation(data: dict):
 
 @app.post("/api/ai/chat")
 def ai_chat(data: dict):
-    question = data.get("question", "").lower()
+    question = data.get("question", "")
+    language = data.get("language", "en")
+    language_name = "Tamil" if language == "ta" else "English"
+
+    ai_message = generate_ai_response(
+        "You are EduMind AI, an expert academic tutor for engineering students. "
+        f"Answer the student's question in {language_name}. Be accurate, encouraging, and practical. "
+        "Use short sections or numbered steps when useful. If the question is unclear, ask one helpful clarification.\n\n"
+        f"Student question: {question}"
+    )
+    if ai_message:
+        return {"answer": ai_message, "source": "gemini", "language": language}
+
+    question = question.lower()
 
     if "stress" in question or "anxious" in question or "overwhelmed" in question:
         answer = (
+            "சிறிது இடைவெளி எடுத்துக் கொண்டு, தலைப்பை சிறிய பகுதிகளாகப் பிரித்து படிப்படியாக தொடருங்கள். தொடர்ந்து செய்வது ஒரே நாளில் அதிகமாகப் படிப்பதை விட சிறந்தது."
+            if language == "ta" else
             "Take a short break, divide the topic into smaller sections "
             "and continue learning step by step. Remember that consistency beats cramming!"
         )
 
     elif "math" in question or "poisson" in question or "formula" in question:
         answer = (
+            "முதலில் சூத்திரத்தைப் புரிந்து கொண்டு, கடினமான கேள்விகளுக்கு செல்லும் முன் ஒரு எளிய உதாரணத்தைத் தீர்க்குங்கள். Poisson distribution-ல் event rate λ-வைத் தெளிவாகப் புரிந்து கொள்ளுங்கள்."
+            if language == "ta" else
             "Focus on the formula first, then solve one simple example "
             "before moving to harder problems. For Poisson distributions, ensure you understand the event rate λ."
         )
 
     elif "circuit" in question or "dsd" in question or "asynchronous" in question:
         answer = (
+            "Asynchronous Sequential Circuits-க்கு flow tables, primitive state tables, race conditions மற்றும் hazards ஆகியவற்றைப் புரிந்து கொண்டு timing diagrams-ஐப் பயிற்சி செய்யுங்கள்."
+            if language == "ta" else
             "For Asynchronous Sequential Circuits, focus on flow tables, primitive state tables, "
             "and eliminating race conditions and hazards before attempting timing diagrams."
         )
 
     elif "python" in question or "code" in question:
         answer = (
+            "Python-ல் சுத்தமான functions எழுதப் பயிற்சி செய்யுங்கள். List comprehensions, dictionaries மற்றும் collections, itertools போன்ற standard libraries-ஐ நன்றாகப் பயன்படுத்த கற்றுக் கொள்ளுங்கள்."
+            if language == "ta" else
             "In Python, practice writing clean functions and master list comprehensions, "
             "dictionaries, and standard algorithmic libraries like `collections` and `itertools`."
         )
 
     elif "plan" in question or "schedule" in question:
         answer = (
+            "இதோ ஒரு 3 படி படிப்பு திட்டம்:\n1. முக்கியமான பலவீனமான தலைப்புகளுக்கு 30 நிமிடங்கள் ஒதுக்குங்கள்.\n2. 3 நடுத்தர பயிற்சி கேள்விகளைத் தீர்க்குங்கள்.\n3. 10 நிமிட இடைவெளிக்குப் பிறகு active recall மூலம் உங்களைச் சோதித்துக் கொள்ளுங்கள்."
+            if language == "ta" else
             "Here is a recommended 3-step study plan:\n"
             "1. Allocate 30 mins to high-priority weak topics.\n"
             "2. Complete 3 medium practice problems.\n"
@@ -199,12 +263,16 @@ def ai_chat(data: dict):
 
     else:
         answer = (
+            "கருத்துகளைப் புரிந்து கொள்ளவும், பலவீனமான தலைப்புகளை அடையாளம் காணவும், தனிப்பட்ட படிப்பு திட்டத்தை உருவாக்கவும் நான் உதவ முடியும்."
+            if language == "ta" else
             "I can help you understand concepts, identify weak topics "
             "and create a personalized learning plan."
         )
 
     return {
-        "answer": answer
+        "answer": answer,
+        "source": "fallback",
+        "language": language
     }
 
 
